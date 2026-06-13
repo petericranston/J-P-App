@@ -61,7 +61,7 @@ export default function SignUpScreen() {
 
   useEffect(() => {
     if (session) {
-      navigation.navigate('NamePhoto');
+      navigation.navigate('Main');
     }
   }, [session]);
 

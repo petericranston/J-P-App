@@ -8,18 +8,6 @@ import SplashScreen from '../screens/onboarding/SplashScreen';
 import WelcomeScreen from '../screens/onboarding/WelcomeScreen';
 import SignUpScreen from '../screens/onboarding/SignUpScreen';
 import SignInScreen from '../screens/onboarding/SignInScreen';
-import NamePhotoScreen from '../screens/onboarding/NamePhotoScreen';
-import LifeAreaScreen from '../screens/onboarding/LifeAreaScreen';
-import WhyScreen from '../screens/onboarding/WhyScreen';
-import InviteCrewScreen from '../screens/onboarding/InviteCrewScreen';
-import WaitingRoomScreen from '../screens/onboarding/WaitingRoomScreen';
-import YoureInScreen from '../screens/onboarding/YoureInScreen';
-import CulturalPrimerScreen from '../screens/onboarding/CulturalPrimerScreen';
-
-import GoalWhatScreen from '../screens/goals/GoalWhatScreen';
-import GoalFrequencyScreen from '../screens/goals/GoalFrequencyScreen';
-import GoalSprintScreen from '../screens/goals/GoalSprintScreen';
-import GoalConfirmScreen from '../screens/goals/GoalConfirmScreen';
 
 import HomeScreen from '../screens/home/HomeScreen';
 
@@ -84,17 +72,6 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
 
 // ─── Sub-navigators ───────────────────────────────────────────────────────────
 
-function GoalNavigator() {
-  return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="GoalWhat" component={GoalWhatScreen} />
-      <Stack.Screen name="GoalFrequency" component={GoalFrequencyScreen} />
-      <Stack.Screen name="GoalSprint" component={GoalSprintScreen} />
-      <Stack.Screen name="GoalConfirm" component={GoalConfirmScreen} />
-    </Stack.Navigator>
-  );
-}
-
 function OnboardingNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -102,14 +79,6 @@ function OnboardingNavigator() {
       <Stack.Screen name="Welcome" component={WelcomeScreen} />
       <Stack.Screen name="SignUp" component={SignUpScreen} />
       <Stack.Screen name="SignIn" component={SignInScreen} />
-      <Stack.Screen name="NamePhoto" component={NamePhotoScreen} />
-      <Stack.Screen name="LifeArea" component={LifeAreaScreen} />
-      <Stack.Screen name="Why" component={WhyScreen} />
-      <Stack.Screen name="InviteCrew" component={InviteCrewScreen} />
-      <Stack.Screen name="WaitingRoom" component={WaitingRoomScreen} />
-      <Stack.Screen name="YoureIn" component={YoureInScreen} />
-      <Stack.Screen name="CulturalPrimer" component={CulturalPrimerScreen} />
-      <Stack.Screen name="Goals" component={GoalNavigator} />
     </Stack.Navigator>
   );
 }
@@ -165,8 +134,8 @@ function MainNavigator() {
 function RootNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="Onboarding" component={OnboardingNavigator} />
       <Stack.Screen name="Main" component={MainNavigator} />
+      {/* <Stack.Screen name="Onboarding" component={OnboardingNavigator} /> */}
       {/* CheckIn flow — accessible from any tab via navigate('CheckInPrompt') */}
       <Stack.Screen name="CheckInPrompt" component={CheckInPromptScreen} />
       <Stack.Screen name="CheckInPhoto" component={CheckInPhotoScreen} />
