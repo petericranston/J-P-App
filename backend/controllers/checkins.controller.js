@@ -54,7 +54,12 @@ exports.submitCheckin = async (req, res) => {
 
   let streak = null;
   if (effectiveCrewId) {
-    streak = await updateStreakOnCheckin(req.user.id, effectiveCrewId);
+    try {
+      streak = await updateStreakOnCheckin(req.user.id, effectiveCrewId);
+    } catch (err) {
+      // Check-in was recorded — don't fail the request over the streak update
+      console.error('Streak update failed:', err.message);
+    }
   }
 
   res.status(201).json({ checkin, streak });

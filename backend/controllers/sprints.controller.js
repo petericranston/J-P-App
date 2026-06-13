@@ -30,6 +30,12 @@ exports.getSummary = async (req, res) => {
   const sprintStart = new Date(goal.sprint_start);
   const sprintEnd = new Date(goal.sprint_end + 'T23:59:59Z');
 
+  const totalDays =
+    goal.frequency === 'daily'
+      ? Math.floor((sprintEnd - sprintStart) / 86400000) + 1
+      : goal.sprint_weeks;
+
+  // Checkins for the queried goal (for the owner's own completion %)
   const { data: checkins } = await supabase
     .from('checkins')
     .select('user_id, checked_in_at')
@@ -37,34 +43,79 @@ exports.getSummary = async (req, res) => {
     .gte('checked_in_at', sprintStart.toISOString())
     .lte('checked_in_at', sprintEnd.toISOString());
 
-  const totalDays =
-    goal.frequency === 'daily'
-      ? Math.floor((sprintEnd - sprintStart) / 86400000) + 1
-      : goal.sprint_weeks;
-
   const checkinCount = (checkins || []).length;
   const completionPct = totalDays > 0 ? Math.round((checkinCount / totalDays) * 100) : 0;
 
-  // Per-member breakdown (for crew sprint summary screen)
+  // Per-member breakdown — each member has their own goal, so we must fetch
+  // each member's active goal and their checkins separately.
   let memberStats = [];
   if (goal.crew_id) {
-    const { data: members } = await supabase
-      .from('crew_members')
-      .select('user_id, profiles(display_name, avatar_url)')
-      .eq('crew_id', goal.crew_id);
+    const [{ data: members }, { data: memberGoals }] = await Promise.all([
+      supabase
+        .from('crew_members')
+        .select('user_id, profiles(display_name, avatar_url)')
+        .eq('crew_id', goal.crew_id),
+      supabase
+        .from('goals')
+        .select('id, user_id, sprint_start, sprint_end, sprint_weeks, frequency')
+        .eq('crew_id', goal.crew_id)
+        .eq('is_active', true),
+    ]);
 
-    const checkinsPerUser = {};
-    for (const c of checkins || []) {
-      checkinsPerUser[c.user_id] = (checkinsPerUser[c.user_id] || 0) + 1;
+    // Build goal lookup per user (one active goal per user per crew)
+    const goalByUser = {};
+    for (const g of memberGoals || []) {
+      goalByUser[g.user_id] = g;
     }
 
-    memberStats = (members || []).map((m) => ({
-      user_id: m.user_id,
-      display_name: m.profiles?.display_name,
-      avatar_url: m.profiles?.avatar_url,
-      checkin_count: checkinsPerUser[m.user_id] || 0,
-      completion_pct: totalDays > 0 ? Math.round(((checkinsPerUser[m.user_id] || 0) / totalDays) * 100) : 0,
-    }));
+    // Batch-fetch checkins for all member goals
+    const memberGoalIds = Object.values(goalByUser).map((g) => g.id);
+    const { data: allCheckins } = memberGoalIds.length
+      ? await supabase
+          .from('checkins')
+          .select('goal_id, user_id, checked_in_at')
+          .in('goal_id', memberGoalIds)
+      : { data: [] };
+
+    // Group checkins by goal_id
+    const checkinsByGoal = {};
+    for (const c of allCheckins || []) {
+      (checkinsByGoal[c.goal_id] ||= []).push(c);
+    }
+
+    memberStats = (members || []).map((m) => {
+      const mGoal = goalByUser[m.user_id];
+      if (!mGoal) {
+        return {
+          user_id: m.user_id,
+          display_name: m.profiles?.display_name,
+          avatar_url: m.profiles?.avatar_url,
+          checkin_count: 0,
+          completion_pct: 0,
+        };
+      }
+
+      const mStart = new Date(mGoal.sprint_start);
+      const mEnd = new Date(mGoal.sprint_end + 'T23:59:59Z');
+      const mTotalDays =
+        mGoal.frequency === 'daily'
+          ? Math.floor((mEnd - mStart) / 86400000) + 1
+          : mGoal.sprint_weeks;
+
+      const mCheckins = (checkinsByGoal[mGoal.id] || []).filter((c) => {
+        const t = new Date(c.checked_in_at);
+        return t >= mStart && t <= mEnd;
+      });
+
+      const count = mCheckins.length;
+      return {
+        user_id: m.user_id,
+        display_name: m.profiles?.display_name,
+        avatar_url: m.profiles?.avatar_url,
+        checkin_count: count,
+        completion_pct: mTotalDays > 0 ? Math.round((count / mTotalDays) * 100) : 0,
+      };
+    });
   }
 
   res.json({
@@ -106,13 +157,8 @@ exports.vote = async (req, res) => {
   if (vote_type === 'recommit') {
     const newStart = new Date().toISOString().split('T')[0];
     const newEnd = new Date(Date.now() + goal.sprint_weeks * 7 * 86400000).toISOString().split('T')[0];
-
-    await supabase
-      .from('goals')
-      .update({ sprint_start: newStart, sprint_end: newEnd })
-      .eq('id', goal_id);
+    await supabase.from('goals').update({ sprint_start: newStart, sprint_end: newEnd }).eq('id', goal_id);
   } else {
-    // Pivot: deactivate current goal; client navigates to goal creation
     await supabase.from('goals').update({ is_active: false }).eq('id', goal_id);
   }
 

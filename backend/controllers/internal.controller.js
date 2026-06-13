@@ -4,43 +4,54 @@ const { sendPushBatch } = require('../services/push');
 const toDateStr = (d) => d.toISOString().split('T')[0];
 
 // Daily cron — detect missed check-ins and apply shield or warm reset.
-// Strategy: for each active goal, compare the user's last_checkin_date to yesterday.
-// After processing, advance last_checkin_date to yesterday so the same miss isn't
-// double-counted on subsequent cron runs.
+// After processing, last_checkin_date is advanced to yesterday so the same
+// miss isn't double-counted on the next cron run.
 exports.processStreaks = async (req, res) => {
   const today = toDateStr(new Date());
   const yesterday = toDateStr(new Date(Date.now() - 86400000));
 
   const { data: goals, error: goalsErr } = await supabase
     .from('goals')
-    .select('id, user_id, crew_id, sprint_start, sprint_weeks')
+    .select('id, user_id, crew_id, sprint_start')
     .eq('is_active', true)
     .not('crew_id', 'is', null);
 
   if (goalsErr) return res.status(500).json({ error: goalsErr.message });
+  if (!goals?.length) return res.json({ processed: 0 });
 
-  let processed = 0;
+  // Batch-fetch all relevant streak rows in one query
+  const crewIds = [...new Set(goals.map((g) => g.crew_id))];
+  const userIds = [...new Set(goals.map((g) => g.user_id))];
 
-  for (const goal of goals || []) {
-    const { data: streak } = await supabase
-      .from('streaks')
-      .select('*')
-      .eq('user_id', goal.user_id)
-      .eq('crew_id', goal.crew_id)
-      .single();
+  const { data: allStreaks, error: streaksErr } = await supabase
+    .from('streaks')
+    .select('*')
+    .in('crew_id', crewIds)
+    .in('user_id', userIds);
 
+  if (streaksErr) return res.status(500).json({ error: streaksErr.message });
+
+  const streakMap = {};
+  for (const s of allStreaks || []) {
+    streakMap[`${s.user_id}:${s.crew_id}`] = s;
+  }
+
+  const updateOps = [];
+
+  for (const goal of goals) {
+    const streak = streakMap[`${goal.user_id}:${goal.crew_id}`];
     if (!streak) continue;
-    // User already checked in yesterday or today — nothing to do.
     if (streak.last_checkin_date >= yesterday) continue;
 
     const updates = { last_checkin_date: yesterday };
 
-    // If the current sprint started today, replenish the shield.
-    // (sprint_start = today means this is the first cron after a new sprint began)
-    const isNewSprintFirstCron = goal.sprint_start === today;
-    if (isNewSprintFirstCron) updates.shield_used = false;
+    // Shield replenishes on the first missed-day cron of the new sprint.
+    // sprint_start is set to the day the sprint began, so the cron processing
+    // "yesterday" (day 1 of the sprint) sees sprint_start === yesterday.
+    const isSprintDay1 = goal.sprint_start === yesterday;
+    if (isSprintDay1) updates.shield_used = false;
 
-    const shieldAvailable = isNewSprintFirstCron ? true : !streak.shield_used;
+    const shieldAvailable = isSprintDay1 ? true : !streak.shield_used;
 
     if (streak.current_streak > 0) {
       if (shieldAvailable) {
@@ -50,33 +61,47 @@ exports.processStreaks = async (req, res) => {
       }
     }
 
-    await supabase
-      .from('streaks')
-      .update(updates)
-      .eq('user_id', goal.user_id)
-      .eq('crew_id', goal.crew_id);
-
-    processed++;
+    updateOps.push(
+      supabase
+        .from('streaks')
+        .update(updates)
+        .eq('user_id', goal.user_id)
+        .eq('crew_id', goal.crew_id),
+    );
   }
 
-  res.json({ processed });
+  await Promise.all(updateOps);
+
+  res.json({ processed: updateOps.length });
 };
 
-// Weekly cron — rotate the captain to the next most-recently-joined member.
+// Weekly cron — rotate the captain to the next member (by join order).
 exports.captainRotation = async (req, res) => {
   const { data: crews, error } = await supabase.from('crews').select('id');
   if (error) return res.status(500).json({ error: error.message });
+  if (!crews?.length) return res.json({ rotated: 0 });
 
-  let rotated = 0;
+  const crewIds = crews.map((c) => c.id);
 
-  for (const crew of crews || []) {
-    const { data: members } = await supabase
-      .from('crew_members')
-      .select('user_id, role, joined_at')
-      .eq('crew_id', crew.id)
-      .order('joined_at', { ascending: true });
+  // Batch-fetch all members for all crews in one query
+  const { data: allMembers, error: membersErr } = await supabase
+    .from('crew_members')
+    .select('crew_id, user_id, role, joined_at')
+    .in('crew_id', crewIds)
+    .order('joined_at', { ascending: true });
 
-    if (!members || members.length < 2) continue;
+  if (membersErr) return res.status(500).json({ error: membersErr.message });
+
+  const membersByCrew = {};
+  for (const m of allMembers || []) {
+    (membersByCrew[m.crew_id] ||= []).push(m);
+  }
+
+  const updateOps = [];
+
+  for (const crew of crews) {
+    const members = membersByCrew[crew.id] || [];
+    if (members.length < 2) continue;
 
     const currentCaptainIdx = members.findIndex((m) => m.role === 'captain');
     if (currentCaptainIdx === -1) continue;
@@ -85,65 +110,65 @@ exports.captainRotation = async (req, res) => {
     const currentCaptain = members[currentCaptainIdx];
     const nextCaptain = members[nextIdx];
 
-    await Promise.all([
-      supabase
-        .from('crew_members')
-        .update({ role: 'member' })
-        .eq('crew_id', crew.id)
-        .eq('user_id', currentCaptain.user_id),
-      supabase
-        .from('crew_members')
-        .update({ role: 'captain' })
-        .eq('crew_id', crew.id)
-        .eq('user_id', nextCaptain.user_id),
-    ]);
-
-    rotated++;
+    updateOps.push(
+      supabase.from('crew_members').update({ role: 'member' }).eq('crew_id', crew.id).eq('user_id', currentCaptain.user_id),
+      supabase.from('crew_members').update({ role: 'captain' }).eq('crew_id', crew.id).eq('user_id', nextCaptain.user_id),
+    );
   }
 
-  res.json({ rotated });
+  await Promise.all(updateOps);
+
+  res.json({ rotated: updateOps.length / 2 });
 };
 
-// Daily/hourly cron — recompute and cache health score on each crew row.
+// Daily/hourly cron — recompute and cache crew health scores.
 // Requires crews.health_score column (schema addition).
 exports.computeAllCrewHealth = async (req, res) => {
   const { data: crews, error } = await supabase.from('crews').select('id');
   if (error) return res.status(500).json({ error: error.message });
+  if (!crews?.length) return res.json({ updated: 0 });
 
+  const crewIds = crews.map((c) => c.id);
   const cutoff = new Date(Date.now() - 7 * 86400000).toISOString();
-  let updated = 0;
 
-  for (const crew of crews || []) {
-    const { data: members } = await supabase
-      .from('crew_members')
-      .select('user_id')
-      .eq('crew_id', crew.id);
+  // Two batch queries instead of 2N
+  const [{ data: allMembers }, { data: recentCheckins }] = await Promise.all([
+    supabase.from('crew_members').select('crew_id, user_id').in('crew_id', crewIds),
+    supabase.from('checkins').select('crew_id, user_id').in('crew_id', crewIds).gte('checked_in_at', cutoff),
+  ]);
 
-    if (!members?.length) continue;
-
-    const { data: recentCheckins } = await supabase
-      .from('checkins')
-      .select('user_id')
-      .eq('crew_id', crew.id)
-      .gte('checked_in_at', cutoff);
-
-    const activeUsers = new Set((recentCheckins || []).map((c) => c.user_id));
-    const health = Math.round((activeUsers.size / members.length) * 5);
-
-    await supabase.from('crews').update({ health_score: health }).eq('id', crew.id);
-    updated++;
+  const membersByCrew = {};
+  for (const m of allMembers || []) {
+    (membersByCrew[m.crew_id] ||= new Set()).add(m.user_id);
   }
 
-  res.json({ updated });
+  const activeUsersByCrew = {};
+  for (const c of recentCheckins || []) {
+    (activeUsersByCrew[c.crew_id] ||= new Set()).add(c.user_id);
+  }
+
+  const updateOps = [];
+
+  for (const crew of crews) {
+    const members = membersByCrew[crew.id];
+    if (!members?.size) continue;
+
+    const activeUsers = activeUsersByCrew[crew.id] || new Set();
+    const health = Math.round((activeUsers.size / members.size) * 5);
+    updateOps.push(supabase.from('crews').update({ health_score: health }).eq('id', crew.id));
+  }
+
+  await Promise.all(updateOps);
+
+  res.json({ updated: updateOps.length });
 };
 
-// Daily cron — send one gentle nudge after 3 consecutive days of absence.
-// Reads expo_push_token from profiles (schema addition).
+// Daily cron — send one gentle nudge after exactly 3 days of absence.
+// "Exactly 3 days ago" naturally prevents repeat nudges: on day 4+
+// last_checkin_date < threeDaysAgo so the user doesn't match.
 exports.sparkFlow = async (req, res) => {
   const threeDaysAgo = toDateStr(new Date(Date.now() - 3 * 86400000));
 
-  // Find users whose last check-in was exactly 3 days ago (haven't been nudged yet,
-  // since after 4+ days last_checkin_date would be < threeDaysAgo).
   const { data: streaks, error } = await supabase
     .from('streaks')
     .select('user_id')
