@@ -1,8 +1,8 @@
 const router = require('express').Router();
 const requireAuth = require('../middleware/auth');
-const { getSummary, vote } = require('../controllers/sprints.controller');
+const { getSummary, recommit } = require('../controllers/sprints.controller');
 
 router.get('/summary', requireAuth, getSummary);
-router.post('/vote', requireAuth, vote);
+router.post('/recommit', requireAuth, recommit);
 
 module.exports = router;

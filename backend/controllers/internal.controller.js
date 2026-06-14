@@ -3,31 +3,31 @@ const { sendPushBatch } = require('../services/push');
 
 const toDateStr = (d) => d.toISOString().split('T')[0];
 
-// Daily cron — detect missed check-ins and apply shield or warm reset.
-// After processing, last_checkin_date is advanced to yesterday so the same
-// miss isn't double-counted on the next cron run.
+// Hourly cron — process missed check-ins for all active daily pacts.
+// For each pact where last_checkin_date < yesterday:
+//   shield_available → consume shield, streak holds, warm push.
+//   no shield → reset streak to 0. No push (never notify someone about a loss).
 exports.processStreaks = async (req, res) => {
-  const today = toDateStr(new Date());
   const yesterday = toDateStr(new Date(Date.now() - 86400000));
 
-  const { data: goals, error: goalsErr } = await supabase
-    .from('goals')
-    .select('id, user_id, crew_id, sprint_start')
-    .eq('is_active', true)
-    .not('crew_id', 'is', null);
+  const { data: pacts, error: pactsErr } = await supabase
+    .from('pacts')
+    .select('id, owner_id, frequency, sprint_start')
+    .eq('status', 'active')
+    .eq('frequency', 'daily');
 
-  if (goalsErr) return res.status(500).json({ error: goalsErr.message });
-  if (!goals?.length) return res.json({ processed: 0 });
+  if (pactsErr) return res.status(500).json({ error: pactsErr.message });
 
   // Batch-fetch all relevant streak rows in one query
   const crewIds = [...new Set(goals.map((g) => g.crew_id))];
   const userIds = [...new Set(goals.map((g) => g.user_id))];
 
-  const { data: allStreaks, error: streaksErr } = await supabase
-    .from('streaks')
-    .select('*')
-    .in('crew_id', crewIds)
-    .in('user_id', userIds);
+  for (const pact of pacts || []) {
+    const { data: streak } = await supabase
+      .from('streaks')
+      .select('*')
+      .eq('pact_id', pact.id)
+      .single();
 
   if (streaksErr) return res.status(500).json({ error: streaksErr.message });
 
@@ -45,29 +45,27 @@ exports.processStreaks = async (req, res) => {
 
     const updates = { last_checkin_date: yesterday };
 
-    // Shield replenishes on the first missed-day cron of the new sprint.
-    // sprint_start is set to the day the sprint began, so the cron processing
-    // "yesterday" (day 1 of the sprint) sees sprint_start === yesterday.
-    const isSprintDay1 = goal.sprint_start === yesterday;
-    if (isSprintDay1) updates.shield_used = false;
+    const isNewSprintFirstCron = pact.sprint_start === toDateStr(new Date());
+    if (isNewSprintFirstCron) updates.shield_available = true;
 
-    const shieldAvailable = isSprintDay1 ? true : !streak.shield_used;
+    const shieldAvailable = isNewSprintFirstCron ? true : streak.shield_available;
 
     if (streak.current_streak > 0) {
       if (shieldAvailable) {
-        updates.shield_used = true;
+        updates.shield_available = false;
+        updates.shield_used_on = yesterday;
       } else {
         updates.current_streak = 0;
+        updates.shield_used_on = null;
       }
     }
 
-    updateOps.push(
-      supabase
-        .from('streaks')
-        .update(updates)
-        .eq('user_id', goal.user_id)
-        .eq('crew_id', goal.crew_id),
-    );
+    await supabase
+      .from('streaks')
+      .update(updates)
+      .eq('pact_id', pact.id);
+
+    processed++;
   }
 
   await Promise.all(updateOps);
@@ -75,126 +73,98 @@ exports.processStreaks = async (req, res) => {
   res.json({ processed: updateOps.length });
 };
 
-// Weekly cron — rotate the captain to the next member (by join order).
-exports.captainRotation = async (req, res) => {
-  const { data: crews, error } = await supabase.from('crews').select('id');
+// Daily cron — mark completed sprints and push both owner and partner.
+exports.processSprintEnds = async (req, res) => {
+  const today = toDateStr(new Date());
+
+  const { data: pacts, error } = await supabase
+    .from('pacts')
+    .select('id, owner_id, partner_id')
+    .eq('status', 'active')
+    .lt('sprint_end', today);
+
   if (error) return res.status(500).json({ error: error.message });
   if (!crews?.length) return res.json({ rotated: 0 });
 
-  const crewIds = crews.map((c) => c.id);
+  let completed = 0;
 
-  // Batch-fetch all members for all crews in one query
-  const { data: allMembers, error: membersErr } = await supabase
-    .from('crew_members')
-    .select('crew_id, user_id, role, joined_at')
-    .in('crew_id', crewIds)
-    .order('joined_at', { ascending: true });
+  for (const pact of pacts || []) {
+    await supabase.from('pacts').update({ status: 'completed' }).eq('id', pact.id);
 
-  if (membersErr) return res.status(500).json({ error: membersErr.message });
+    const userIds = [pact.owner_id, pact.partner_id].filter(Boolean);
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, expo_push_token')
+      .in('id', userIds)
+      .not('expo_push_token', 'is', null);
 
-  const membersByCrew = {};
-  for (const m of allMembers || []) {
-    (membersByCrew[m.crew_id] ||= []).push(m);
+    const messages = (profiles || []).map((p) => ({
+      to: p.expo_push_token,
+      title: 'Sprint complete.',
+      body: 'Look what you did.',
+      data: { screen: 'SprintSummary', pact_id: pact.id },
+    }));
+
+    await sendPushBatch(messages);
+    completed++;
   }
 
-  const updateOps = [];
-
-  for (const crew of crews) {
-    const members = membersByCrew[crew.id] || [];
-    if (members.length < 2) continue;
-
-    const currentCaptainIdx = members.findIndex((m) => m.role === 'captain');
-    if (currentCaptainIdx === -1) continue;
-
-    const nextIdx = (currentCaptainIdx + 1) % members.length;
-    const currentCaptain = members[currentCaptainIdx];
-    const nextCaptain = members[nextIdx];
-
-    updateOps.push(
-      supabase.from('crew_members').update({ role: 'member' }).eq('crew_id', crew.id).eq('user_id', currentCaptain.user_id),
-      supabase.from('crew_members').update({ role: 'captain' }).eq('crew_id', crew.id).eq('user_id', nextCaptain.user_id),
-    );
-  }
-
-  await Promise.all(updateOps);
-
-  res.json({ rotated: updateOps.length / 2 });
+  res.json({ completed });
 };
 
-// Daily/hourly cron — recompute and cache crew health scores.
-// Requires crews.health_score column (schema addition).
-exports.computeAllCrewHealth = async (req, res) => {
-  const { data: crews, error } = await supabase.from('crews').select('id');
-  if (error) return res.status(500).json({ error: error.message });
-  if (!crews?.length) return res.json({ updated: 0 });
-
-  const crewIds = crews.map((c) => c.id);
-  const cutoff = new Date(Date.now() - 7 * 86400000).toISOString();
-
-  // Two batch queries instead of 2N
-  const [{ data: allMembers }, { data: recentCheckins }] = await Promise.all([
-    supabase.from('crew_members').select('crew_id, user_id').in('crew_id', crewIds),
-    supabase.from('checkins').select('crew_id, user_id').in('crew_id', crewIds).gte('checked_in_at', cutoff),
-  ]);
-
-  const membersByCrew = {};
-  for (const m of allMembers || []) {
-    (membersByCrew[m.crew_id] ||= new Set()).add(m.user_id);
-  }
-
-  const activeUsersByCrew = {};
-  for (const c of recentCheckins || []) {
-    (activeUsersByCrew[c.crew_id] ||= new Set()).add(c.user_id);
-  }
-
-  const updateOps = [];
-
-  for (const crew of crews) {
-    const members = membersByCrew[crew.id];
-    if (!members?.size) continue;
-
-    const activeUsers = activeUsersByCrew[crew.id] || new Set();
-    const health = Math.round((activeUsers.size / members.size) * 5);
-    updateOps.push(supabase.from('crews').update({ health_score: health }).eq('id', crew.id));
-  }
-
-  await Promise.all(updateOps);
-
-  res.json({ updated: updateOps.length });
-};
-
-// Daily cron — send one gentle nudge after exactly 3 days of absence.
-// "Exactly 3 days ago" naturally prevents repeat nudges: on day 4+
-// last_checkin_date < threeDaysAgo so the user doesn't match.
+// Hourly cron — send one gentle nudge after 3 consecutive days of absence.
+// Sets nudged_at on the pact to prevent repeat nudges. Cleared on next check-in.
 exports.sparkFlow = async (req, res) => {
   const threeDaysAgo = toDateStr(new Date(Date.now() - 3 * 86400000));
 
   const { data: streaks, error } = await supabase
     .from('streaks')
-    .select('user_id')
+    .select('pact_id')
     .eq('last_checkin_date', threeDaysAgo);
 
   if (error) return res.status(500).json({ error: error.message });
   if (!streaks?.length) return res.json({ nudged: 0 });
 
-  const userIds = [...new Set(streaks.map((s) => s.user_id))];
+  const pactIds = streaks.map((s) => s.pact_id);
 
+  const { data: pacts } = await supabase
+    .from('pacts')
+    .select('id, owner_id, why_statement')
+    .in('id', pactIds)
+    .eq('status', 'active')
+    .is('nudged_at', null);
+
+  if (!pacts?.length) return res.json({ nudged: 0 });
+
+  const ownerIds = pacts.map((p) => p.owner_id);
   const { data: profiles } = await supabase
     .from('profiles')
-    .select('id, expo_push_token, why_statement')
-    .in('id', userIds)
+    .select('id, expo_push_token')
+    .in('id', ownerIds)
     .not('expo_push_token', 'is', null);
 
-  const messages = (profiles || []).map((p) => ({
-    to: p.expo_push_token,
-    title: 'Still here. So are they.',
-    body: p.why_statement
-      ? `Your why: "${p.why_statement.slice(0, 80)}"`
-      : 'Your crew is waiting.',
-    data: { screen: 'WelcomeBack' },
-  }));
+  const tokenMap = Object.fromEntries((profiles || []).map((p) => [p.id, p.expo_push_token]));
+
+  const messages = pacts
+    .filter((p) => tokenMap[p.owner_id])
+    .map((p) => ({
+      to: tokenMap[p.owner_id],
+      title: 'Still here. So are they.',
+      body: p.why_statement
+        ? `Your why: "${p.why_statement.slice(0, 80)}"`
+        : 'Your partner is waiting.',
+      data: { screen: 'WelcomeBack', pact_id: p.id },
+    }));
 
   await sendPushBatch(messages);
+
+  const nudgedIds = pacts.filter((p) => tokenMap[p.owner_id]).map((p) => p.id);
+  if (nudgedIds.length) {
+    await supabase
+      .from('pacts')
+      .update({ nudged_at: new Date().toISOString() })
+      .in('id', nudgedIds);
+  }
 
   res.json({ nudged: messages.length });
 };

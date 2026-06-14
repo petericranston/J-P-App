@@ -14,22 +14,15 @@ import HomeScreen from '../screens/home/HomeScreen';
 import CheckInPromptScreen from '../screens/checkin/CheckInPromptScreen';
 import CheckInPhotoScreen from '../screens/checkin/CheckInPhotoScreen';
 import CheckInNoteScreen from '../screens/checkin/CheckInNoteScreen';
-import CheckInMoodScreen from '../screens/checkin/CheckInMoodScreen';
 import CheckInSubmittedScreen from '../screens/checkin/CheckInSubmittedScreen';
 
 import CrewScreen from '../screens/crew/CrewScreen';
-import MemberProfileScreen from '../screens/crew/MemberProfileScreen';
 
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import SettingsScreen from '../screens/profile/SettingsScreen';
-import BadgeDetailScreen from '../screens/profile/BadgeDetailScreen';
 
 import SprintSummaryScreen from '../screens/secondary/SprintSummaryScreen';
 import WelcomeBackScreen from '../screens/secondary/WelcomeBackScreen';
-import PaywallScreen from '../screens/secondary/PaywallScreen';
-import PublicGroupsScreen from '../screens/secondary/PublicGroupsScreen';
-import CrewBalanceScreen from '../screens/secondary/CrewBalanceScreen';
-import SprintStoriesScreen from '../screens/secondary/SprintStoriesScreen';
 
 import BottomNav, { type TabId } from '../components/composite/BottomNav';
 
@@ -42,13 +35,13 @@ const Tab = createBottomTabNavigator();
 
 const ROUTE_TO_TAB: Record<string, TabId> = {
   Home: 'home',
-  Crew: 'crew',
+  Partner: 'partner',
   Profile: 'profile',
 };
 
 const TAB_TO_ROUTE: Partial<Record<TabId, string>> = {
   home: 'Home',
-  crew: 'Crew',
+  partner: 'Partner',
   profile: 'Profile',
 };
 
@@ -91,12 +84,11 @@ function HomeStack() {
   );
 }
 
-function CrewStack() {
+// Partner tab — will become the full PartnerView (screen 12) in Chunk 4.
+function PartnerStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="CrewScreen" component={CrewScreen} />
-      <Stack.Screen name="MemberProfile" component={MemberProfileScreen} />
-      <Stack.Screen name="SprintSummary" component={SprintSummaryScreen} />
+      <Stack.Screen name="PartnerScreen" component={CrewScreen} />
     </Stack.Navigator>
   );
 }
@@ -105,14 +97,12 @@ function ProfileStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
-      <Stack.Screen name="BadgeDetail" component={BadgeDetailScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
     </Stack.Navigator>
   );
 }
 
 // ─── Main tab navigator ───────────────────────────────────────────────────────
-// Uses our custom BottomNav instead of the OS tab bar.
 
 function MainNavigator() {
   return (
@@ -121,7 +111,7 @@ function MainNavigator() {
       tabBar={(props) => <CustomTabBar {...props} />}
     >
       <Tab.Screen name="Home" component={HomeStack} />
-      <Tab.Screen name="Crew" component={CrewStack} />
+      <Tab.Screen name="Partner" component={PartnerStack} />
       <Tab.Screen name="Profile" component={ProfileStack} />
     </Tab.Navigator>
   );
@@ -140,14 +130,10 @@ function RootNavigator() {
       <Stack.Screen name="CheckInPrompt" component={CheckInPromptScreen} />
       <Stack.Screen name="CheckInPhoto" component={CheckInPhotoScreen} />
       <Stack.Screen name="CheckInNote" component={CheckInNoteScreen} />
-      <Stack.Screen name="CheckInMood" component={CheckInMoodScreen} />
       <Stack.Screen name="CheckInSubmitted" component={CheckInSubmittedScreen} />
-      {/* Secondary screens */}
+      {/* Lifecycle screens */}
       <Stack.Screen name="WelcomeBack" component={WelcomeBackScreen} />
-      <Stack.Screen name="Paywall" component={PaywallScreen} />
-      <Stack.Screen name="PublicGroups" component={PublicGroupsScreen} />
-      <Stack.Screen name="CrewBalance" component={CrewBalanceScreen} />
-      <Stack.Screen name="SprintStories" component={SprintStoriesScreen} />
+      <Stack.Screen name="SprintSummary" component={SprintSummaryScreen} />
     </Stack.Navigator>
   );
 }

@@ -5,7 +5,7 @@ import { colors } from '../../tokens/colours';
 import { typography } from '../../tokens/typography';
 import { spacing } from '../../tokens/spacing';
 
-export type TabId = 'home' | 'crew' | 'checkin' | 'profile';
+export type TabId = 'home' | 'partner' | 'checkin' | 'profile';
 
 interface BottomNavProps {
   active?: TabId;
@@ -56,7 +56,7 @@ function ProfileIconSvg({ color }: { color: string }) {
 
 const TABS: { id: TabId; label: string; Icon: React.FC<{ color: string }> }[] = [
   { id: 'home',    label: 'Home',    Icon: HomeIconSvg     },
-  { id: 'crew',    label: 'Crew',    Icon: CrewIconSvg     },
+  { id: 'partner', label: 'Partner', Icon: CrewIconSvg     },
   { id: 'checkin', label: 'Check-in', Icon: CheckinIconSvg },
   { id: 'profile', label: 'Profile', Icon: ProfileIconSvg  },
 ];
@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderTopWidth: 1,
     borderTopColor: colors.inkBorder,
-    backgroundColor: colors.white,
+    backgroundColor: colors.stone,
     paddingTop: spacing.sm,
     paddingBottom: spacing.sm,
     paddingHorizontal: spacing.md,
