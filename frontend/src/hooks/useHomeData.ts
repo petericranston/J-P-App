@@ -1,9 +1,10 @@
-export type StreakState = 'active' | 'shield' | 'broken';
-export type CheckInFormat = 'photo' | 'note' | 'mood';
+export type CheckInFormat = 'photo' | 'note';
+export type PactStatus = 'waiting' | 'active' | 'completed' | 'archived';
+export type InviteStatus = 'sent' | 'seen' | 'joined';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-// These mirror the shape the backend will return.
-// Swap the mock below for real API calls when the backend is ready.
+// These mirror the shape the backend returns.
+// Swap the stub below for real API calls when wiring begins.
 
 export interface HomeUser {
   displayName: string;
@@ -11,75 +12,86 @@ export interface HomeUser {
   avatarColor: string;
 }
 
-export interface HomeMember {
+export interface HomePact {
   id: string;
+  title: string;
+  lifeArea: string;
+  frequency: 'daily' | 'weekly';
+  sprintWeeks: number;
+  privacy: 'full' | 'streak_only';
+  status: PactStatus;
+  sprintStart: string;
+  sprintEnd: string;
+}
+
+export interface HomePartner {
   displayName: string;
   avatarUrl: string | null;
   avatarColor: string;
-  role: 'member' | 'captain';
   checkedInToday: boolean;
 }
 
-export interface InvitedPerson {
-  id: string;
-  name: string;
-  initial: string;
-  avatarColor: string;
-  status: 'Invited' | 'Seen' | 'Joined';
+export interface HomeInvite {
+  token: string;
+  status: InviteStatus;
+}
+
+export interface HomeStreak {
+  current: number;
+  longest: number;
+  shieldAvailable: boolean;
+  shieldUsedOn: string | null;
 }
 
 export interface FeedItem {
   id: string;
-  user: { displayName: string; avatarColor: string; avatarUrl: string | null };
   format: CheckInFormat;
   noteText: string | null;
   photoUrl: string | null;
-  moodEffort: number | null;   // 1–5
-  moodFeeling: number | null;  // 1–5
+  checkedInAt: string;
   reactions: { emoji: string; count: number }[];
-  checkedInAt: string; // ISO string
 }
 
 export interface HomeData {
   loading: boolean;
   user: HomeUser;
-  goal: { title: string; frequency: string };
-  streak: { current: number; longest: number; state: StreakState };
-  hasCrewJoined: boolean;  // false → waiting state; true → pending/active
-  todayCheckedIn: boolean; // false → pending;       true → active
-  crew: {
-    name: string;
-    healthDots: number; // 0–5
-    members: HomeMember[];
-  };
-  invitedPeople: InvitedPerson[];
-  sprint: { dayCurrent: number; dayTotal: number; progress: number }; // progress 0–1
-  feed: FeedItem[];
+  pact: HomePact | null;
+  streak: HomeStreak;
+  partner: HomePartner | null;  // null = no partner yet → Waiting state
+  invite: HomeInvite | null;    // null = no invite sent
+  hasPartnerJoined: boolean;    // false → Waiting state
+  todayCheckedIn: boolean;      // false (+ hasPartnerJoined) → Pending state
+  sprint: { dayCurrent: number; dayTotal: number; progress: number };
+  feed: FeedItem[];             // owner's own check-ins, last 7 days
 }
 
 // ─── Stub ─────────────────────────────────────────────────────────────────────
-// Replace this with real API / Supabase calls.
-// Flip hasCrewJoined / todayCheckedIn to preview different screen states.
+// Replace with real API calls when backend is wired.
+// Toggle hasPartnerJoined / todayCheckedIn to preview the three Home states:
+//   hasPartnerJoined=false              → Waiting
+//   hasPartnerJoined=true, todayCheckedIn=false  → Pending
+//   hasPartnerJoined=true, todayCheckedIn=true   → Active
 
 const STUB: HomeData = {
   loading: false,
-  user:    { displayName: 'User Name', avatarUrl: null, avatarColor: '#C4613A' },
-  goal:    { title: 'Goal Title', frequency: 'daily' },
-  streak:  { current: 0, longest: 0, state: 'active' },
-
-  hasCrewJoined:  false,
-  todayCheckedIn: false,
-
-  crew: {
-    name:       'Crew Name',
-    healthDots: 0,
-    members:    [],
+  user: { displayName: 'User Name', avatarUrl: null, avatarColor: '#C4613A' },
+  pact: {
+    id: 'stub-pact-id',
+    title: 'Pact Title',
+    lifeArea: 'health',
+    frequency: 'daily',
+    sprintWeeks: 4,
+    privacy: 'full',
+    status: 'active',
+    sprintStart: '2026-06-14',
+    sprintEnd: '2026-07-12',
   },
-
-  invitedPeople: [],
-
+  streak: { current: 0, longest: 0, shieldAvailable: true, shieldUsedOn: null },
+  partner: null,
+  invite: null,
+  hasPartnerJoined: false,
+  todayCheckedIn: false,
   sprint: { dayCurrent: 1, dayTotal: 28, progress: 0 },
-
   feed: [],
 };
 

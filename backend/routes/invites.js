@@ -1,13 +1,12 @@
 const router = require('express').Router();
 const requireAuth = require('../middleware/auth');
-const requireCaptain = require('../middleware/requireCaptain');
-const { createInvite, getInvite, acceptInvite } = require('../controllers/invites.controller');
+const { createInvite, getInvite, claimInvite } = require('../controllers/invites.controller');
 
-// Create invite — captain of the crew only
-router.post('/', requireAuth, requireCaptain, createInvite);
-// Public lookup — no auth needed (so the invite screen can show crew name pre-login)
+// Create invite — pact owner only (enforced in controller)
+router.post('/', requireAuth, createInvite);
+// Public lookup — no auth needed (witness and pre-login flow)
 router.get('/:token', getInvite);
-// Accept — must be signed in
-router.post('/:token/accept', requireAuth, acceptInvite);
+// Claim — must be signed in; sets pacts.partner_id
+router.post('/:token/claim', requireAuth, claimInvite);
 
 module.exports = router;

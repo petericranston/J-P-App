@@ -2,24 +2,21 @@ const supabase = require('./supabase');
 
 const toDateStr = (d) => d.toISOString().split('T')[0];
 
-// Called immediately after a successful check-in insert.
-async function updateStreakOnCheckin(userId, crewId) {
+async function updateStreakOnCheckin(pactId) {
   const today = toDateStr(new Date());
 
   const { data: existing } = await supabase
     .from('streaks')
     .select('*')
-    .eq('user_id', userId)
-    .eq('crew_id', crewId)
+    .eq('pact_id', pactId)
     .single();
 
   if (!existing) {
     await supabase.from('streaks').insert({
-      user_id: userId,
-      crew_id: crewId,
+      pact_id: pactId,
       current_streak: 1,
       longest_streak: 1,
-      shield_used: false,
+      shield_available: true,
       last_checkin_date: today,
     });
     return { current_streak: 1, longest_streak: 1 };
@@ -36,8 +33,7 @@ async function updateStreakOnCheckin(userId, crewId) {
   await supabase
     .from('streaks')
     .update({ current_streak: newStreak, longest_streak: newLongest, last_checkin_date: today })
-    .eq('user_id', userId)
-    .eq('crew_id', crewId);
+    .eq('pact_id', pactId);
 
   return { current_streak: newStreak, longest_streak: newLongest };
 }

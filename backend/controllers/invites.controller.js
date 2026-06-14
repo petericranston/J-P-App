@@ -1,16 +1,28 @@
-const { randomUUID } = require('crypto');
+const { randomBytes } = require('crypto');
 const supabase = require('../services/supabase');
 
-const MAX_CREW_SIZE = 6;
-const INVITE_TTL_DAYS = 7;
+const INVITE_TTL_DAYS = 30;
 
 exports.createInvite = async (req, res) => {
-  const crew_id = req.body.crew_id;
+  const { pact_id } = req.body;
+  if (!pact_id) return res.status(400).json({ error: 'pact_id required' });
+
+  const { data: pact } = await supabase
+    .from('pacts')
+    .select('owner_id')
+    .eq('id', pact_id)
+    .single();
+
+  if (!pact || pact.owner_id !== req.user.id) {
+    return res.status(403).json({ error: 'Only the pact owner can create an invite' });
+  }
+
+  const token = randomBytes(16).toString('hex'); // 32-char url-safe
   const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 86400000).toISOString();
 
   const { data, error } = await supabase
     .from('invites')
-    .insert({ crew_id, invited_by: req.user.id, invite_token: randomUUID(), expires_at: expiresAt })
+    .insert({ pact_id, created_by: req.user.id, token, expires_at: expiresAt })
     .select()
     .single();
 
@@ -24,8 +36,8 @@ exports.getInvite = async (req, res) => {
 
   const { data, error } = await supabase
     .from('invites')
-    .select('id, crew_id, expires_at, crews(name)')
-    .eq('invite_token', token)
+    .select('id, pact_id, expires_at, claimed_by, pacts(title)')
+    .eq('token', token)
     .single();
 
   if (error || !data) return res.status(404).json({ error: 'Invite not found' });
@@ -34,45 +46,39 @@ exports.getInvite = async (req, res) => {
   res.json({ invite: data });
 };
 
-exports.acceptInvite = async (req, res) => {
+exports.claimInvite = async (req, res) => {
   const { token } = req.params;
 
   const { data: invite, error } = await supabase
     .from('invites')
     .select('*')
-    .eq('invite_token', token)
+    .eq('token', token)
     .single();
 
   if (error || !invite) return res.status(404).json({ error: 'Invite not found' });
   if (new Date(invite.expires_at) < new Date()) return res.status(410).json({ error: 'Invite expired' });
+  if (invite.claimed_by) return res.status(409).json({ error: 'Invite already claimed' });
 
-  const { count } = await supabase
-    .from('crew_members')
-    .select('*', { count: 'exact', head: true })
-    .eq('crew_id', invite.crew_id);
-
-  if (count >= MAX_CREW_SIZE) return res.status(409).json({ error: 'Crew is full (max 6)' });
-
-  const { data: existing } = await supabase
-    .from('crew_members')
-    .select('user_id')
-    .eq('crew_id', invite.crew_id)
-    .eq('user_id', req.user.id)
+  const { data: pact } = await supabase
+    .from('pacts')
+    .select('owner_id, partner_id')
+    .eq('id', invite.pact_id)
     .single();
 
-  if (existing) return res.status(409).json({ error: 'Already a crew member' });
+  if (!pact) return res.status(404).json({ error: 'Pact not found' });
+  if (pact.owner_id === req.user.id) return res.status(409).json({ error: 'You own this pact' });
+  if (pact.partner_id) return res.status(409).json({ error: 'Pact already has a partner' });
 
   await Promise.all([
-    supabase.from('crew_members').insert({ crew_id: invite.crew_id, user_id: req.user.id, role: 'member' }),
-    supabase.from('streaks').insert({
-      user_id: req.user.id,
-      crew_id: invite.crew_id,
-      current_streak: 0,
-      longest_streak: 0,
-      shield_used: false,
-      last_checkin_date: null,
-    }),
+    supabase
+      .from('pacts')
+      .update({ partner_id: req.user.id })
+      .eq('id', invite.pact_id),
+    supabase
+      .from('invites')
+      .update({ claimed_by: req.user.id, claimed_at: new Date().toISOString() })
+      .eq('id', invite.id),
   ]);
 
-  res.json({ crew_id: invite.crew_id });
+  res.json({ pact_id: invite.pact_id });
 };

@@ -45,79 +45,88 @@ export default function HomeScreen() {
         <Text style={styles.screenTitle}>Home  <Text style={styles.wireframeTag}>[WIREFRAME]</Text></Text>
 
         {/* ── User ── */}
-        <Section label="user  ·  GET /api/user">
+        <Section label="user  ·  GET /api/profile">
           <Field name="displayName" value={data.user.displayName} />
           <Field name="avatarUrl"   value={data.user.avatarUrl} />
           <Field name="avatarColor" value={data.user.avatarColor} />
         </Section>
 
-        {/* ── Goal ── */}
-        <Section label="goal  ·  GET /api/goal">
-          <Field name="title"     value={data.goal.title} />
-          <Field name="frequency" value={data.goal.frequency} />
+        {/* ── Pact ── */}
+        <Section label="pact  ·  GET /api/pacts">
+          {data.pact ? (
+            <>
+              <Field name="id"          value={data.pact.id} />
+              <Field name="title"       value={data.pact.title} />
+              <Field name="lifeArea"    value={data.pact.lifeArea} />
+              <Field name="frequency"   value={data.pact.frequency} />
+              <Field name="sprintWeeks" value={data.pact.sprintWeeks} />
+              <Field name="privacy"     value={data.pact.privacy} />
+              <Field name="status"      value={data.pact.status} />
+              <Field name="sprintStart" value={data.pact.sprintStart} />
+              <Field name="sprintEnd"   value={data.pact.sprintEnd} />
+            </>
+          ) : (
+            <Text style={styles.emptyNote}>no pact yet</Text>
+          )}
         </Section>
 
         {/* ── Streak ── */}
-        <Section label="streak  ·  GET /api/streak">
-          <Field name="current" value={data.streak.current} />
-          <Field name="longest" value={data.streak.longest} />
-          <Field name="state"   value={data.streak.state} />
+        <Section label="streak  ·  GET /api/streaks?pact_id=">
+          <Field name="current"        value={data.streak.current} />
+          <Field name="longest"        value={data.streak.longest} />
+          <Field name="shieldAvailable" value={data.streak.shieldAvailable} />
+          <Field name="shieldUsedOn"   value={data.streak.shieldUsedOn} />
         </Section>
 
         {/* ── State flags ── */}
-        <Section label="state flags  ·  derived from backend">
-          <Field name="hasCrewJoined"  value={data.hasCrewJoined} />
-          <Field name="todayCheckedIn" value={data.todayCheckedIn} />
+        <Section label="state flags  ·  derived">
+          <Field name="hasPartnerJoined" value={data.hasPartnerJoined} />
+          <Field name="todayCheckedIn"   value={data.todayCheckedIn} />
         </Section>
 
         {/* ── Sprint ── */}
-        <Section label="sprint  ·  GET /api/sprint">
+        <Section label="sprint  ·  GET /api/sprints?pact_id=">
           <Field name="dayCurrent" value={data.sprint.dayCurrent} />
           <Field name="dayTotal"   value={data.sprint.dayTotal} />
           <Field name="progress"   value={data.sprint.progress} />
         </Section>
 
-        {/* ── Crew ── */}
-        <Section label="crew  ·  GET /api/crew">
-          <Field name="name"       value={data.crew.name} />
-          <Field name="healthDots" value={data.crew.healthDots} />
-          {data.crew.members.map((m) => (
-            <View key={m.id} style={styles.listItem}>
-              <Text style={styles.listItemTitle}>{m.displayName} ({m.role})</Text>
-              <Field name="checkedInToday" value={m.checkedInToday} />
-              <Field name="avatarColor"    value={m.avatarColor} />
-            </View>
-          ))}
+        {/* ── Partner ── */}
+        <Section label="partner  ·  from pact.partner_id → GET /api/profile">
+          {data.partner ? (
+            <>
+              <Field name="displayName"    value={data.partner.displayName} />
+              <Field name="avatarUrl"      value={data.partner.avatarUrl} />
+              <Field name="avatarColor"    value={data.partner.avatarColor} />
+              <Field name="checkedInToday" value={data.partner.checkedInToday} />
+            </>
+          ) : (
+            <Text style={styles.emptyNote}>no partner yet</Text>
+          )}
         </Section>
 
-        {/* ── Invites (waiting state) ── */}
-        <Section label="invites  ·  GET /api/invites  [visible when !hasCrewJoined]">
-          {data.invitedPeople.length === 0 ? (
-            <Text style={styles.emptyNote}>no invites</Text>
+        {/* ── Invite ── [visible when !hasPartnerJoined] */}
+        <Section label="invite  ·  GET /api/invites?pact_id=  [when !hasPartnerJoined]">
+          {data.invite ? (
+            <>
+              <Field name="token"  value={data.invite.token} />
+              <Field name="status" value={data.invite.status} />
+            </>
           ) : (
-            data.invitedPeople.map((p) => (
-              <View key={p.id} style={styles.listItem}>
-                <Text style={styles.listItemTitle}>{p.name}</Text>
-                <Field name="status"      value={p.status} />
-                <Field name="avatarColor" value={p.avatarColor} />
-              </View>
-            ))
+            <Text style={styles.emptyNote}>no invite sent</Text>
           )}
         </Section>
 
         {/* ── Feed ── */}
-        <Section label="feed  ·  GET /api/feed">
+        <Section label="feed  ·  GET /api/checkins?pact_id=  (own check-ins, last 7 days)">
           {data.feed.length === 0 ? (
             <Text style={styles.emptyNote}>no check-ins yet</Text>
           ) : (
             data.feed.map((item) => (
               <View key={item.id} style={styles.listItem}>
-                <Text style={styles.listItemTitle}>{item.user.displayName} · {item.format}</Text>
+                <Text style={styles.listItemTitle}>{item.format}  ·  {item.checkedInAt}</Text>
                 <Field name="noteText"    value={item.noteText} />
                 <Field name="photoUrl"    value={item.photoUrl} />
-                <Field name="moodEffort"  value={item.moodEffort} />
-                <Field name="moodFeeling" value={item.moodFeeling} />
-                <Field name="checkedInAt" value={item.checkedInAt} />
                 <Field name="reactions"   value={item.reactions.map((r) => `${r.emoji}×${r.count}`).join('  ')} />
               </View>
             ))
@@ -158,9 +167,8 @@ const styles = StyleSheet.create({
     color: colors.inkMuted,
     fontSize: 10,
   },
-  // ── Section ──
   section: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.stoneMid,
     borderRadius: radius.lg,
     padding: spacing.base,
     borderWidth: 1,
@@ -173,7 +181,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     marginBottom: spacing.xs,
   },
-  // ── Field row ──
   field: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -183,7 +190,7 @@ const styles = StyleSheet.create({
   fieldName: {
     ...typography.label,
     color: colors.inkMid,
-    minWidth: 110,
+    minWidth: 120,
   },
   fieldValue: {
     ...typography.bodySm,
@@ -191,7 +198,6 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'right',
   },
-  // ── Nested list item ──
   listItem: {
     borderTopWidth: 1,
     borderTopColor: colors.inkBorder,
