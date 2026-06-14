@@ -1,0 +1,9 @@
+import React from 'react';
+import { View } from 'react-native';
+
+// TODO: Build this component
+const TeammateScore = () => {
+  return <View />;
+};
+
+export default TeammateScore;
