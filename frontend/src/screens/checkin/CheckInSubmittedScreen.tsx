@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, SafeAreaView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { StackActions } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 
 export default function CheckInSubmittedScreen() {
@@ -25,7 +24,7 @@ export default function CheckInSubmittedScreen() {
                 },
               }),
             });
-            navigation.dispatch(StackActions.popToTop());
+            navigation.navigate('Main', { screen: 'Home' } as any);
           }}
           style={{ backgroundColor: '#C4613A', paddingHorizontal: 32, paddingVertical: 14, borderRadius: 12 }}
         >
