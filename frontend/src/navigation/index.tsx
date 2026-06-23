@@ -1,30 +1,30 @@
-import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
-import { createStackNavigator } from '@react-navigation/stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import React from "react";
+import { NavigationContainer } from "@react-navigation/native";
+import { createStackNavigator } from "@react-navigation/stack";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 
-import SplashScreen from '../screens/onboarding/SplashScreen';
-import WelcomeScreen from '../screens/onboarding/WelcomeScreen';
-import SignUpScreen from '../screens/onboarding/SignUpScreen';
-import SignInScreen from '../screens/onboarding/SignInScreen';
+import SplashScreen from "../screens/onboarding/SplashScreen";
+import WelcomeScreen from "../screens/onboarding/WelcomeScreen";
+import SignUpScreen from "../screens/onboarding/SignUpScreen";
+import SignInScreen from "../screens/onboarding/SignInScreen";
 
-import HomeScreen from '../screens/home/HomeScreen';
+import HomeScreen from "../screens/home/HomeScreen";
 
-import CheckInPromptScreen from '../screens/checkin/CheckInPromptScreen';
-import CheckInPhotoScreen from '../screens/checkin/CheckInPhotoScreen';
-import CheckInNoteScreen from '../screens/checkin/CheckInNoteScreen';
-import CheckInSubmittedScreen from '../screens/checkin/CheckInSubmittedScreen';
+import CheckInPromptScreen from "../screens/checkin/CheckInPromptScreen";
+import CheckInPhotoScreen from "../screens/checkin/CheckInPhotoScreen";
+import CheckInNoteScreen from "../screens/checkin/CheckInNoteScreen";
+import CheckInSubmittedScreen from "../screens/checkin/CheckInSubmittedScreen";
 
-import CrewScreen from '../screens/crew/CrewScreen';
+import CrewScreen from "../screens/crew/CrewScreen";
 
-import ProfileScreen from '../screens/profile/ProfileScreen';
-import SettingsScreen from '../screens/profile/SettingsScreen';
+import ProfileScreen from "../screens/profile/ProfileScreen";
+import SettingsScreen from "../screens/profile/SettingsScreen";
 
-import SprintSummaryScreen from '../screens/secondary/SprintSummaryScreen';
-import WelcomeBackScreen from '../screens/secondary/WelcomeBackScreen';
+import SprintSummaryScreen from "../screens/secondary/SprintSummaryScreen";
+import WelcomeBackScreen from "../screens/secondary/WelcomeBackScreen";
 
-import BottomNav, { type TabId } from '../components/composite/BottomNav';
+import BottomNav, { type TabId } from "../components/composite/BottomNav";
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -34,24 +34,24 @@ const Tab = createBottomTabNavigator();
 // Checkin is not a tab — it opens the CheckIn flow from the root stack.
 
 const ROUTE_TO_TAB: Record<string, TabId> = {
-  Home: 'home',
-  Partner: 'partner',
-  Profile: 'profile',
+  Home: "home",
+  Partner: "partner",
+  Profile: "profile",
 };
 
 const TAB_TO_ROUTE: Partial<Record<TabId, string>> = {
-  home: 'Home',
-  partner: 'Partner',
-  profile: 'Profile',
+  home: "Home",
+  partner: "Partner",
+  profile: "Profile",
 };
 
 function CustomTabBar({ state, navigation }: BottomTabBarProps) {
-  const activeTab = ROUTE_TO_TAB[state.routes[state.index].name] ?? 'home';
+  const activeTab = ROUTE_TO_TAB[state.routes[state.index].name] ?? "home";
 
   const handlePress = (tab: TabId) => {
-    if (tab === 'checkin') {
+    if (tab === "checkin") {
       // CheckIn screens live in the root Stack — navigate up through parent navigators
-      (navigation as any).navigate('CheckInPrompt');
+      (navigation as any).navigate("CheckInPrompt");
       return;
     }
     const routeName = TAB_TO_ROUTE[tab];
@@ -130,7 +130,10 @@ function RootNavigator() {
       <Stack.Screen name="CheckInPrompt" component={CheckInPromptScreen} />
       <Stack.Screen name="CheckInPhoto" component={CheckInPhotoScreen} />
       <Stack.Screen name="CheckInNote" component={CheckInNoteScreen} />
-      <Stack.Screen name="CheckInSubmitted" component={CheckInSubmittedScreen} />
+      <Stack.Screen
+        name="CheckInSubmitted"
+        component={CheckInSubmittedScreen}
+      />
       {/* Lifecycle screens */}
       <Stack.Screen name="WelcomeBack" component={WelcomeBackScreen} />
       <Stack.Screen name="SprintSummary" component={SprintSummaryScreen} />
