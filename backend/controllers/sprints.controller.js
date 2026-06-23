@@ -19,12 +19,7 @@ exports.getSummary = async (req, res) => {
   const sprintStart = new Date(pact.sprint_start);
   const sprintEnd = new Date(pact.sprint_end + "T23:59:59Z");
 
-  const totalDays =
-    goal.frequency === "daily"
-      ? Math.floor((sprintEnd - sprintStart) / 86400000) + 1
-      : goal.sprint_weeks;
-
-  // Checkins for the queried goal (for the owner's own completion %)
+  // Checkins for the queried pact (for the owner's own completion %)
   const { data: checkins } = await supabase
     .from("checkins")
     .select("user_id, checked_in_at")

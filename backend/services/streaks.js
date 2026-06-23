@@ -14,7 +14,7 @@ async function updateStreakOnCheckin(pactId) {
   if (fetchErr && fetchErr.code !== 'PGRST116') throw fetchErr;
 
   if (!existing) {
-    await supabase.from('streaks').insert({
+    const { error: insertErr } = await supabase.from('streaks').insert({
       pact_id: pactId,
       current_streak: 1,
       longest_streak: 1,

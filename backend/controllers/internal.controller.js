@@ -17,35 +17,34 @@ exports.processStreaks = async (req, res) => {
     .eq('frequency', 'daily');
 
   if (pactsErr) return res.status(500).json({ error: pactsErr.message });
+  if (!pacts?.length) return res.json({ processed: 0 });
+
+  const today = toDateStr(new Date());
 
   // Batch-fetch all relevant streak rows in one query
-  const crewIds = [...new Set(goals.map((g) => g.crew_id))];
-  const userIds = [...new Set(goals.map((g) => g.user_id))];
-
-  for (const pact of pacts || []) {
-    const { data: streak } = await supabase
-      .from('streaks')
-      .select('*')
-      .eq('pact_id', pact.id)
-      .single();
+  const pactIds = pacts.map((p) => p.id);
+  const { data: allStreaks, error: streaksErr } = await supabase
+    .from('streaks')
+    .select('*')
+    .in('pact_id', pactIds);
 
   if (streaksErr) return res.status(500).json({ error: streaksErr.message });
 
   const streakMap = {};
   for (const s of allStreaks || []) {
-    streakMap[`${s.user_id}:${s.crew_id}`] = s;
+    streakMap[s.pact_id] = s;
   }
 
   const updateOps = [];
 
-  for (const goal of goals) {
-    const streak = streakMap[`${goal.user_id}:${goal.crew_id}`];
+  for (const pact of pacts) {
+    const streak = streakMap[pact.id];
     if (!streak) continue;
     if (streak.last_checkin_date >= yesterday) continue;
 
     const updates = { last_checkin_date: yesterday };
 
-    const isNewSprintFirstCron = pact.sprint_start === toDateStr(new Date());
+    const isNewSprintFirstCron = pact.sprint_start === today;
     if (isNewSprintFirstCron) updates.shield_available = true;
 
     const shieldAvailable = isNewSprintFirstCron ? true : streak.shield_available;
@@ -60,12 +59,12 @@ exports.processStreaks = async (req, res) => {
       }
     }
 
-    await supabase
-      .from('streaks')
-      .update(updates)
-      .eq('pact_id', pact.id);
-
-    processed++;
+    updateOps.push(
+      supabase
+        .from('streaks')
+        .update(updates)
+        .eq('pact_id', pact.id)
+    );
   }
 
   await Promise.all(updateOps);
@@ -84,7 +83,7 @@ exports.processSprintEnds = async (req, res) => {
     .lt('sprint_end', today);
 
   if (error) return res.status(500).json({ error: error.message });
-  if (!crews?.length) return res.json({ rotated: 0 });
+  if (!pacts?.length) return res.json({ completed: 0 });
 
   let completed = 0;
 
