@@ -19,4 +19,5 @@ export const colors = {
   slate: '#3A4E5C',
   amber: '#B5832A',
   danger: '#C4413A',
+  cream: '#F7F3EE',
 } as const;

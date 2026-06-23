@@ -24,6 +24,11 @@ import SettingsScreen from "../screens/profile/SettingsScreen";
 import SprintSummaryScreen from "../screens/secondary/SprintSummaryScreen";
 import WelcomeBackScreen from "../screens/secondary/WelcomeBackScreen";
 
+import GoalWhatScreen from "../screens/goals/GoalWhatScreen";
+import GoalFrequencyScreen from "../screens/goals/GoalFrequencyScreen";
+import GoalSprintScreen from "../screens/goals/GoalSprintScreen";
+import GoalConfirmScreen from "../screens/goals/GoalConfirmScreen";
+
 import BottomNav, { type TabId } from "../components/composite/BottomNav";
 
 const Stack = createStackNavigator();
@@ -115,7 +120,7 @@ function MainNavigator() {
       <Tab.Screen name="Profile" component={ProfileStack} />
     </Tab.Navigator>
   );
-}
+} 
 
 // ─── Root navigator ───────────────────────────────────────────────────────────
 // CheckIn screens are at root level so they're reachable from any tab or the
@@ -134,6 +139,11 @@ function RootNavigator() {
         name="CheckInSubmitted"
         component={CheckInSubmittedScreen}
       />
+      {/* Goal setup flow */}
+      <Stack.Screen name="GoalWhat" component={GoalWhatScreen} />
+      <Stack.Screen name="GoalFrequency" component={GoalFrequencyScreen} />
+      <Stack.Screen name="GoalSprint" component={GoalSprintScreen} />
+      <Stack.Screen name="GoalConfirm" component={GoalConfirmScreen} />
       {/* Lifecycle screens */}
       <Stack.Screen name="WelcomeBack" component={WelcomeBackScreen} />
       <Stack.Screen name="SprintSummary" component={SprintSummaryScreen} />

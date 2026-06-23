@@ -11,7 +11,7 @@ export default function CulturalPrimerScreen() {
         <Text style={{ fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase', color: '#C4613A', marginBottom: 8 }}>Onboarding</Text>
         <Text style={{ fontSize: 28, fontWeight: '700', color: '#1A120A', marginBottom: 48 }}>Cultural Primer</Text>
         <TouchableOpacity
-          onPress={() => navigation.navigate('Goals')}
+          onPress={() => navigation.navigate('GoalWhat')}
           style={{ backgroundColor: '#C4613A', paddingHorizontal: 32, paddingVertical: 14, borderRadius: 12 }}
         >
           <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>Set My Goal →</Text>
