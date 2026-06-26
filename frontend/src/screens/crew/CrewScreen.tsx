@@ -11,8 +11,8 @@ export default function CrewScreen() {
         <Text style={{ fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase', color: '#C4613A', marginBottom: 8 }}>Main</Text>
         <Text style={{ fontSize: 28, fontWeight: '700', color: '#1A120A', marginBottom: 32 }}>Crew</Text>
         <TouchableOpacity
-          onPress={() => navigation.navigate('MemberProfile')}
-          style={{ backgroundColor: '#C4613A', paddingHorizontal: 32, paddingVertical: 14, borderRadius: 12, width: '100%', alignItems: 'center' }}
+          disabled
+          style={{ backgroundColor: '#C4613A', paddingHorizontal: 32, paddingVertical: 14, borderRadius: 12, width: '100%', alignItems: 'center', opacity: 0.4 }}
         >
           <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>Member Profile →</Text>
         </TouchableOpacity>

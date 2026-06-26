@@ -68,8 +68,8 @@ export default function BottomNav({ active = 'home', onPress }: BottomNavProps) 
     <View style={styles.container}>
       {TABS.map((tab) => {
         const isActive = tab.id === active;
-        const iconColor = isActive ? colors.ember : 'rgba(26,18,10,0.42)';
-        const labelColor = isActive ? colors.ember : 'rgba(26,18,10,0.55)';
+        const iconColor = isActive ? colors.ember : colors.inkMid;
+        const labelColor = isActive ? colors.ember : colors.inkMuted;
         return (
           <Pressable
             key={tab.id}
